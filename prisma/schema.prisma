@@ -1,0 +1,406 @@
+// ============================================================
+// BOOKING APP - Scalable Database Schema
+// ============================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// CORE MODELS
+// ============================================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  phone         String?
+  emailVerified Boolean   @default(false)
+  image         String?
+  
+  // Relations
+  stores        Store[]
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String  @default("email")
+  accountId         String
+  providerId        String  @default("credential")
+  password          String?
+  accessToken       String?
+  refreshToken      String?
+  idToken           String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope             String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  token        String   @unique
+  userId       String
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  
+  @@unique([identifier, token])
+}
+
+// ============================================================
+// STORE & SERVICES
+// ============================================================
+
+model Store {
+  id              String    @id @default(uuid())
+  name            String
+  slug            String    @unique
+  description     String?
+  phone           String?
+  email           String?
+  address         String?
+  city            String?
+  province        String?
+  postalCode      String?
+  timezone        String    @default("Asia/Jakarta")
+  currency        String    @default("IDR")
+  
+  // Business Hours (JSON for flexibility)
+  businessHours   Json?     // { monday: { open: "09:00", close: "17:00", closed: false }, ... }
+  settings        Json?     // { bookingBufferMinutes: 15, maxAdvanceDays: 30, ... }
+  
+  // Owner
+  ownerId         String
+  owner           User      @relation(fields: [ownerId], references: [id])
+  
+  // Relations
+  services        Service[]
+  bookings        Booking[]
+  customers       Customer[]
+  workingHours    WorkingHour[]
+  
+  // Status
+  isActive        Boolean   @default(true)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  
+  @@index([ownerId])
+  @@index([slug])
+  @@index([isActive])
+}
+
+model Service {
+  id              String    @id @default(uuid())
+  name            String
+  description     String?
+  duration        Int       // Duration in minutes
+  price           Int       // Price in cents (Rp 50000 = 5000000)
+  currency        String    @default("IDR")
+  
+  // Service Configuration
+  bufferBefore    Int       @default(0)  // Buffer time before service (minutes)
+  bufferAfter     Int       @default(0)  // Buffer time after service (minutes)
+  maxBookingsPerDay Int?    // Limit bookings per day
+  requiresDeposit Boolean   @default(false)
+  depositAmount   Int?      // Deposit amount in cents
+  
+  // Category & Display
+  category        String?
+  sortOrder       Int       @default(0)
+  isActive        Boolean   @default(true)
+  
+  // Store
+  storeId         String
+  store           Store     @relation(fields: [storeId], references: [id])
+  
+  // Relations
+  bookings        Booking[]
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  
+  @@index([storeId])
+  @@index([isActive])
+  @@index([category])
+}
+
+model WorkingHour {
+  id              String    @id @default(uuid())
+  storeId         String
+  store           Store     @relation(fields: [storeId], references: [id])
+  
+  dayOfWeek       Int       // 0 = Sunday, 6 = Saturday
+  openTime        String    // "09:00"
+  closeTime       String    // "17:00"
+  isClosed        Boolean   @default(false)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([storeId, dayOfWeek])
+  @@index([storeId])
+}
+
+// ============================================================
+// CUSTOMERS
+// ============================================================
+
+model Customer {
+  id              String    @id @default(uuid())
+  name            String
+  email           String?
+  phone           String
+  notes           String?
+  
+  // Store
+  storeId         String
+  store           Store     @relation(fields: [storeId], references: [id])
+  
+  // Relations
+  bookings        Booking[]
+  
+  // Statistics
+  totalBookings   Int       @default(0)
+  totalSpent      Int       @default(0) // In cents
+  lastBookingAt   DateTime?
+  
+  // Metadata
+  metadata        Json?     // Custom fields
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  
+  @@unique([storeId, phone])
+  @@index([storeId])
+  @@index([phone])
+  @@index([email])
+}
+
+// ============================================================
+// BOOKINGS
+// ============================================================
+
+model Booking {
+  id              String    @id @default(uuid())
+  
+  // Booking Details
+  date            DateTime  // Booking date and time
+  endTime         DateTime  // Calculated end time
+  status          BookingStatus @default(PENDING)
+  
+  // Notes
+  customerNotes   String?
+  internalNotes   String?
+  
+  // Pricing
+  originalPrice   Int       // Original price in cents
+  discountAmount  Int       @default(0) // Discount in cents
+  finalPrice      Int       // Final price after discount
+  depositPaid     Int       @default(0) // Deposit already paid
+  
+  // Deposit
+  requiresDeposit Boolean   @default(false)
+  depositAmount   Int?      // Required deposit amount
+  
+  // Store & Service
+  storeId         String
+  store           Store     @relation(fields: [storeId], references: [id])
+  serviceId       String
+  service         Service   @relation(fields: [serviceId], references: [id])
+  
+  // Customer
+  customerId      String
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  
+  // Staff (optional - for multi-staff businesses)
+  staffId         String?
+  
+  // Cancellation
+  cancelledAt     DateTime?
+  cancelledBy     String?
+  cancelReason    String?
+  
+  // Reschedule
+  rescheduledFrom String?   // Original booking ID if rescheduled
+  
+  // Relations
+  payments        Payment[]
+  notifications   Notification[]
+  
+  // Metadata
+  metadata        Json?     // Custom fields
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([storeId, date])
+  @@index([serviceId, date])
+  @@index([customerId])
+  @@index([status])
+  @@index([date])
+}
+
+model Payment {
+  id              String    @id @default(uuid())
+  
+  // Payment Details
+  amount          Int       // Amount in cents
+  currency        String    @default("IDR")
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  
+  // External Payment
+  externalId      String?   // Payment gateway ID
+  externalUrl     String?   // Payment gateway URL
+  
+  // Booking
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  
+  // Metadata
+  metadata        Json?     // Payment gateway response data
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  paidAt          DateTime?
+  
+  @@index([bookingId])
+  @@index([externalId])
+  @@index([status])
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id              String    @id @default(uuid())
+  
+  // Notification Details
+  type            NotificationType
+  channel         NotificationChannel
+  subject         String
+  message         String
+  
+  // Recipient
+  recipientEmail  String?
+  recipientPhone  String?
+  
+  // Status
+  status          NotificationStatus @default(PENDING)
+  sentAt          DateTime?
+  error           String?
+  
+  // References
+  bookingId       String?
+  booking         Booking?  @relation(fields: [bookingId], references: [id])
+  
+  // Metadata
+  metadata        Json?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([bookingId])
+  @@index([status])
+  @@index([type])
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  E_WALLET
+  CREDIT_CARD
+  DEBIT_CARD
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_REMINDER
+  BOOKING_CANCELLED
+  BOOKING_RESCHEDULED
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  CUSTOM
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
