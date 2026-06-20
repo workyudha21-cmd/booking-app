@@ -5,7 +5,10 @@ import { sendResetPasswordEmail } from "./email";
 
 const prisma = new PrismaClient();
 
+const baseURL = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://booking-app-peach-one.vercel.app";
+
 export const auth = betterAuth({
+  baseURL,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -13,9 +16,11 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false, // Enable in production
     sendResetPassword: async ({ user, url }) => {
+      // Ensure the URL uses the correct domain
+      const correctedUrl = url.replace(/http:\/\/localhost:\d+/, baseURL);
       await sendResetPasswordEmail({
         to: user.email,
-        resetUrl: url,
+        resetUrl: correctedUrl,
         userName: user.name || "User",
       });
     },
