@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
+
+// Dynamic import StoreMap (client-only, no SSR)
+const StoreMap = dynamic(() => import("@/components/store-map").then(mod => mod.StoreMap), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-xl border bg-muted/50 flex items-center justify-center" style={{ height: "200px" }}>
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  ),
+});
 
 interface StoreData {
   id: string;
@@ -78,8 +89,6 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<unknown>(null);
 
   useEffect(() => {
     fetch(`/api/public/stores/${slug}`)
@@ -91,45 +100,6 @@ export default function BookingPage() {
       .catch(() => setError("Toko tidak ditemukan"))
       .finally(() => setLoading(false));
   }, [slug]);
-
-  // Initialize map when store has location
-  useEffect(() => {
-    if (!store?.latitude || !store?.longitude || !mapRef.current || mapInstanceRef.current) return;
-
-    const initMap = async () => {
-      const L = (await import("leaflet")).default;
-
-      // Fix default icon
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      });
-
-      const map = L.map(mapRef.current!).setView([store.latitude!, store.longitude!], 15);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(map);
-
-      const marker = L.marker([store.latitude!, store.longitude!]).addTo(map);
-      marker.bindPopup(`<b>${store.name}</b><br>${store.address || ''}`).openPopup();
-
-      mapInstanceRef.current = map;
-    };
-
-    const timer = setTimeout(initMap, 100);
-
-    return () => {
-      clearTimeout(timer);
-      if (mapInstanceRef.current) {
-        (mapInstanceRef.current as { remove: () => void }).remove();
-        mapInstanceRef.current = null;
-      }
-    };
-  }, [store]);
 
   useEffect(() => {
     if (selectedService && selectedDate) {
@@ -390,10 +360,12 @@ export default function BookingPage() {
               </div>
               
               {/* Map Container */}
-              <div 
-                ref={mapRef} 
-                className="w-full" 
-                style={{ height: "200px" }}
+              <StoreMap
+                latitude={store.latitude}
+                longitude={store.longitude}
+                storeName={store.name}
+                address={store.address || undefined}
+                height="200px"
               />
               
               {/* Store Info */}

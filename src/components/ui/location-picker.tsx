@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Navigation, Search, MapPin, Loader2 } from "lucide-react";
@@ -27,6 +28,16 @@ interface SearchResult {
   lon: string;
 }
 
+// Dynamic import MapContent component (client-only)
+const MapContent = dynamic(() => import("./location-picker-map").then(mod => mod.MapContent), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-xl border bg-muted/50 flex items-center justify-center" style={{ height: "300px" }}>
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  ),
+});
+
 export function LocationPicker({
   latitude,
   longitude,
@@ -34,14 +45,10 @@ export function LocationPicker({
   onAddressChange,
   className,
 }: LocationPickerProps) {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<unknown>(null);
-  const markerRef = useRef<unknown>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   const reverseGeocode = async (lat: number, lng: number) => {
     try {
@@ -73,83 +80,10 @@ export function LocationPicker({
     }
   };
 
-  // Initialize map only once on mount
-  useEffect(() => {
-    if (mounted) return;
-    
-    const initMap = async () => {
-      if (!mapContainerRef.current || mapRef.current) return;
-
-      const L = (await import("leaflet")).default;
-
-      // Fix default icon issue
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      });
-
-      // Default center: Jakarta or provided coordinates
-      const center: [number, number] = latitude && longitude 
-        ? [latitude, longitude] 
-        : [-6.2088, 106.8456];
-
-      const map = L.map(mapContainerRef.current).setView(center, 15);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(map);
-
-      const marker = L.marker(center, { draggable: true }).addTo(map);
-
-      // Handle marker drag
-      marker.on("dragend", () => {
-        const pos = marker.getLatLng();
-        onLocationChange(pos.lat, pos.lng);
-        reverseGeocode(pos.lat, pos.lng);
-      });
-
-      // Handle map click
-      map.on("click", (e: { latlng: { lat: number; lng: number } }) => {
-        marker.setLatLng(e.latlng);
-        onLocationChange(e.latlng.lat, e.latlng.lng);
-        reverseGeocode(e.latlng.lat, e.latlng.lng);
-      });
-
-      mapRef.current = map;
-      markerRef.current = marker;
-      setMounted(true);
-    };
-
-    // Small delay to ensure DOM is ready
-    const timer = setTimeout(initMap, 100);
-
-    return () => {
-      clearTimeout(timer);
-      if (mapRef.current) {
-        (mapRef.current as { remove: () => void }).remove();
-        mapRef.current = null;
-        markerRef.current = null;
-        setMounted(false);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Update marker position when coordinates change externally
-  useEffect(() => {
-    if (markerRef.current && latitude && longitude && mounted) {
-      const marker = markerRef.current as { setLatLng: (latlng: [number, number]) => void };
-      marker.setLatLng([latitude, longitude]);
-      
-      if (mapRef.current) {
-        const map = mapRef.current as { setView: (latlng: [number, number], zoom: number) => void };
-        map.setView([latitude, longitude], 15);
-      }
-    }
-  }, [latitude, longitude, mounted]);
+  const handleLocationChange = (lat: number, lng: number) => {
+    onLocationChange(lat, lng);
+    reverseGeocode(lat, lng);
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -170,8 +104,7 @@ export function LocationPicker({
   const handleSelectResult = (result: SearchResult) => {
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
-    onLocationChange(lat, lng);
-    reverseGeocode(lat, lng);
+    handleLocationChange(lat, lng);
     setSearchResults([]);
     setSearchQuery(result.display_name);
   };
@@ -185,8 +118,7 @@ export function LocationPicker({
     setGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        onLocationChange(position.coords.latitude, position.coords.longitude);
-        reverseGeocode(position.coords.latitude, position.coords.longitude);
+        handleLocationChange(position.coords.latitude, position.coords.longitude);
         setGettingLocation(false);
         toast.success("Lokasi berhasil didapatkan");
       },
@@ -242,9 +174,11 @@ export function LocationPicker({
       </div>
 
       {/* Map Container */}
-      <div className="rounded-xl overflow-hidden border" style={{ height: "300px" }}>
-        <div ref={mapContainerRef} className="w-full h-full" />
-      </div>
+      <MapContent
+        latitude={latitude}
+        longitude={longitude}
+        onLocationChange={handleLocationChange}
+      />
 
       {/* Coordinates Display & Actions */}
       <div className="mt-3 space-y-3">
