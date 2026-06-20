@@ -73,12 +73,15 @@ model Session {
   @@index([userId])
 }
 
-model VerificationToken {
+model Verification {
+  id         String   @id @default(uuid())
   identifier String
-  token      String   @unique
-  expires    DateTime
-  
-  @@unique([identifier, token])
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }
 
 // ============================================================
@@ -90,12 +93,16 @@ model Store {
   name            String
   slug            String    @unique
   description     String?
+  image           String?
   phone           String?
   email           String?
   address         String?
   city            String?
   province        String?
   postalCode      String?
+  latitude        Float?
+  longitude       Float?
+  mapsUrl         String?
   timezone        String    @default("Asia/Jakarta")
   currency        String    @default("IDR")
   

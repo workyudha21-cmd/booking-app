@@ -2,9 +2,11 @@
 
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { CalendarDays, TrendingUp, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LoadingSpinner } from "@/components/loading-spinner";
+import { CalendarDays, TrendingUp, Clock, ArrowRight } from "lucide-react";
 
 interface Booking {
   id: string;
@@ -47,65 +49,71 @@ export default function DashboardPage() {
     }
   }, [session]);
 
+  const stats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todayBookings = bookings.filter((b) => {
+      const bookingDate = new Date(b.date);
+      return bookingDate >= today && bookingDate < tomorrow && b.status !== "CANCELLED";
+    });
+
+    const totalRevenue = bookings
+      .filter((b) => b.status === "COMPLETED" || b.status === "CONFIRMED")
+      .reduce((sum, b) => sum + b.finalPrice, 0);
+
+    const recentBookings = bookings
+      .filter((b) => b.status !== "CANCELLED")
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+
+    return { todayBookings, totalRevenue, recentBookings };
+  }, [bookings]);
+
   if (isPending || loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   const hasStore = stores.length > 0;
 
-  // Calculate statistics
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const todayBookings = bookings.filter((b) => {
-    const bookingDate = new Date(b.date);
-    return bookingDate >= today && bookingDate < tomorrow && b.status !== "CANCELLED";
-  });
-
-  const totalRevenue = bookings
-    .filter((b) => b.status === "COMPLETED" || b.status === "CONFIRMED")
-    .reduce((sum, b) => sum + b.finalPrice, 0);
-
-  const recentBookings = bookings
-    .filter((b) => b.status !== "CANCELLED")
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
-
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Selamat Datang, {session?.user?.name}</h1>
         <p className="text-muted-foreground">Kelola booking dan bisnis Anda di sini.</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="rounded-lg border p-6">
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border bg-background p-6">
           <div className="flex items-center gap-2 text-muted-foreground mb-2">
             <CalendarDays className="h-4 w-4" />
             <p className="text-sm font-medium">Total Bookings</p>
           </div>
           <p className="text-3xl font-bold">{bookings.length}</p>
         </div>
-        <div className="rounded-lg border p-6">
+        <div className="rounded-xl border bg-background p-6">
           <div className="flex items-center gap-2 text-muted-foreground mb-2">
             <Clock className="h-4 w-4" />
             <p className="text-sm font-medium">Hari Ini</p>
           </div>
-          <p className="text-3xl font-bold">{todayBookings.length}</p>
+          <p className="text-3xl font-bold">{stats.todayBookings.length}</p>
         </div>
-        <div className="rounded-lg border p-6">
+        <div className="rounded-xl border bg-background p-6">
           <div className="flex items-center gap-2 text-muted-foreground mb-2">
             <TrendingUp className="h-4 w-4" />
             <p className="text-sm font-medium">Pendapatan</p>
           </div>
-          <p className="text-3xl font-bold">Rp {totalRevenue.toLocaleString("id-ID")}</p>
+          <p className="text-3xl font-bold">Rp {stats.totalRevenue.toLocaleString("id-ID")}</p>
         </div>
       </div>
 
+      {/* Onboarding Steps */}
       {!hasStore && (
-        <div className="rounded-lg border p-6">
+        <div className="rounded-xl border bg-background p-6">
           <h2 className="text-lg font-semibold mb-4">Langkah Selanjutnya</h2>
           <ul className="space-y-3">
             <li className="flex items-center text-sm">
@@ -126,33 +134,41 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Store Info */}
       {hasStore && (
         <>
-          <div className="rounded-lg border p-6">
+          <div className="rounded-xl border bg-background p-6">
             <h2 className="text-lg font-semibold mb-4">Toko Anda</h2>
             <div className="space-y-3">
               {stores.map((store) => (
-                <div key={store.id} className="flex items-center justify-between p-3 bg-muted rounded-md">
+                <div key={store.id} className="flex items-center justify-between p-4 bg-muted rounded-lg">
                   <span className="font-medium">{store.name}</span>
-                  <Link href={`/b/${store.slug}`} className="text-sm text-primary hover:underline">
-                    Lihat Booking Page
-                  </Link>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/b/${store.slug}`}>
+                      Lihat Booking Page
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
                 </div>
               ))}
             </div>
           </div>
 
-          {recentBookings.length > 0 && (
-            <div className="rounded-lg border p-6">
+          {/* Recent Bookings */}
+          {stats.recentBookings.length > 0 && (
+            <div className="rounded-xl border bg-background p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Booking Terbaru</h2>
-                <Link href="/dashboard/bookings" className="text-sm text-primary hover:underline">
-                  Lihat Semua
-                </Link>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/dashboard/bookings">
+                    Lihat Semua
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
               </div>
               <div className="space-y-3">
-                {recentBookings.map((booking) => (
-                  <div key={booking.id} className="flex items-center justify-between p-3 bg-muted rounded-md">
+                {stats.recentBookings.map((booking) => (
+                  <div key={booking.id} className="flex items-center justify-between p-4 bg-muted rounded-lg">
                     <div>
                       <p className="font-medium">{booking.customer.name}</p>
                       <p className="text-sm text-muted-foreground">{booking.service.name}</p>

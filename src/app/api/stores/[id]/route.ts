@@ -25,7 +25,7 @@ export async function PUT(
   }
 
   const body = await request.json();
-  const { name, phone, email, address, city, province, postalCode, description } = body;
+  const { name, phone, email, address, city, province, postalCode, description, image, latitude, longitude, mapsUrl } = body;
 
   const updated = await prisma.store.update({
     where: { id },
@@ -38,6 +38,10 @@ export async function PUT(
       ...(province !== undefined && { province }),
       ...(postalCode !== undefined && { postalCode }),
       ...(description !== undefined && { description }),
+      ...(image !== undefined && { image }),
+      ...(latitude !== undefined && { latitude }),
+      ...(longitude !== undefined && { longitude }),
+      ...(mapsUrl !== undefined && { mapsUrl }),
     },
   });
 

@@ -55,8 +55,30 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Optimasi: Select hanya field yang diperlukan untuk dashboard
     const stores = await prisma.store.findMany({
-      where: { ownerId: session.user.id },
+      where: { 
+        ownerId: session.user.id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        image: true,
+        description: true,
+        phone: true,
+        email: true,
+        address: true,
+        city: true,
+        province: true,
+        postalCode: true,
+        latitude: true,
+        longitude: true,
+        mapsUrl: true,
+        isActive: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: "desc" },
     });
 

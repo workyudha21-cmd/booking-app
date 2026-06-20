@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Simple path-based middleware - auth check happens server-side in each page
-export function middleware(request: NextRequest) {
+// Simple path-based proxy - auth check happens server-side in each page
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public paths that don't need auth

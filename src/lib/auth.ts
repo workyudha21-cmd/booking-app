@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { PrismaClient } from "@/generated/prisma/client";
+import { sendResetPasswordEmail } from "./email";
 
 const prisma = new PrismaClient();
 
@@ -11,6 +12,14 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false, // Enable in production
+    sendResetPassword: async ({ user, url }) => {
+      await sendResetPasswordEmail({
+        to: user.email,
+        resetUrl: url,
+        userName: user.name || "User",
+      });
+    },
+    resetPasswordTokenExpiresIn: 3600, // 1 hour
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days

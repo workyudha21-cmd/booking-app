@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { Menu, X, LayoutDashboard, CalendarDays, ConciergeBell, Users, Settings, LogOut } from "lucide-react";
+import { Menu, X, LayoutDashboard, CalendarDays, ConciergeBell, Users, Settings, LogOut, User } from "lucide-react";
+import Image from "next/image";
 
 const sidebarLinks = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -15,6 +16,7 @@ const sidebarLinks = [
   { href: "/dashboard/services", label: "Layanan", icon: ConciergeBell },
   { href: "/dashboard/customers", label: "Pelanggan", icon: Users },
   { href: "/dashboard/settings", label: "Pengaturan", icon: Settings },
+  { href: "/dashboard/profile", label: "Profil Saya", icon: User },
 ];
 
 export function DashboardSidebar() {
@@ -57,15 +59,25 @@ export function DashboardSidebar() {
       </nav>
 
       <div className="border-t p-4 shrink-0">
-        <div className="flex items-center space-x-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
-            {session?.user?.name?.charAt(0) || "U"}
+        <Link href="/dashboard/profile" className="flex items-center space-x-3 hover:bg-sidebar-accent/50 rounded-md p-2 -m-2 transition-colors">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium overflow-hidden">
+            {session?.user?.image ? (
+              <Image
+                src={session.user.image}
+                alt={session.user.name || "User"}
+                width={36}
+                height={36}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              session?.user?.name?.charAt(0) || "U"
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{session?.user?.name}</p>
             <p className="text-xs text-muted-foreground truncate">{session?.user?.email}</p>
           </div>
-        </div>
+        </Link>
         <Button
           variant="ghost"
           className="mt-3 w-full justify-start"

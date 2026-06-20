@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, Plus, X } from "lucide-react";
+import { Pencil, Trash2, Plus, X, Loader2, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 interface Service {
@@ -145,12 +146,13 @@ export default function ServicesPage() {
   };
 
   if (isPending || loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Layanan</h1>
           <p className="text-muted-foreground">Kelola layanan yang tersedia.</p>
@@ -164,12 +166,13 @@ export default function ServicesPage() {
         </Button>
       </div>
 
+      {/* Form */}
       {showForm && (
-        <form onSubmit={editingId ? handleUpdate : handleCreate} className="rounded-lg border p-6 space-y-4">
+        <form onSubmit={editingId ? handleUpdate : handleCreate} className="rounded-xl border bg-background p-6 space-y-4">
           <h2 className="text-lg font-semibold">
             {editingId ? "Edit Layanan" : "Tambah Layanan Baru"}
           </h2>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="name">Nama Layanan</Label>
               <Input
@@ -192,7 +195,7 @@ export default function ServicesPage() {
               />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="price">Harga (Rp)</Label>
               <Input
@@ -217,7 +220,12 @@ export default function ServicesPage() {
           </div>
           <div className="flex gap-2">
             <Button type="submit" disabled={saving}>
-              {saving ? "Menyimpan..." : editingId ? "Update" : "Simpan"}
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : editingId ? "Update" : "Simpan"}
             </Button>
             {editingId && (
               <Button type="button" variant="outline" onClick={resetForm}>
@@ -228,24 +236,34 @@ export default function ServicesPage() {
         </form>
       )}
 
+      {/* Services Grid */}
       {services.length === 0 ? (
-        <div className="rounded-lg border p-12 text-center">
+        <div className="rounded-xl border bg-background p-12 text-center">
+          <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <p className="text-muted-foreground">Belum ada layanan. Tambahkan layanan pertama Anda.</p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {services.map((service) => (
-            <div key={service.id} className="rounded-lg border p-6 space-y-3">
+            <div key={service.id} className="rounded-xl border bg-background p-5 space-y-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-semibold">{service.name}</h3>
-                  <p className="text-sm text-muted-foreground">{service.duration} menit</p>
+                  <h3 className="font-semibold text-lg">{service.name}</h3>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{service.duration} menit</span>
+                  </div>
                 </div>
-                <span className="text-lg font-bold">
+                <span className="text-lg font-bold text-primary">
                   Rp {service.price.toLocaleString("id-ID")}
                 </span>
               </div>
-              <div className="flex gap-2">
+              {service.description && (
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {service.description}
+                </p>
+              )}
+              <div className="flex gap-2 pt-2 border-t">
                 <Button
                   variant="outline"
                   size="sm"
@@ -269,6 +287,7 @@ export default function ServicesPage() {
         </div>
       )}
 
+      {/* Delete Dialog */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

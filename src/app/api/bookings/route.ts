@@ -11,20 +11,40 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const stores = await prisma.store.findMany({
-    where: { ownerId: session.user.id },
-    include: {
-      bookings: {
-        include: {
-          customer: true,
-          service: true,
-        },
-        orderBy: { date: "desc" },
+  // Optimasi: Query langsung ke Booking dengan join
+  // Menghindari N+1 query
+  const bookings = await prisma.booking.findMany({
+    where: {
+      store: {
+        ownerId: session.user.id,
       },
     },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+        },
+      },
+      service: {
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          duration: true,
+        },
+      },
+      store: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: { date: "desc" },
   });
-
-  const bookings = stores.flatMap((store) => store.bookings);
 
   return NextResponse.json({ bookings });
 }
